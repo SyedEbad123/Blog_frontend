@@ -7,10 +7,19 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Build output and dependencies
 node_modules
 dist
 dist-ssr
+
+# Environment variables - DO NOT COMMIT THESE
+.env
+.env.*
+/server/.env
 *.local
+
+# Dependencies in the server folder
+/server/node_modules
 
 # Editor directories and files
 .vscode/*

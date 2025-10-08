@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
-import { AppProvider } from './app-context/AppContext';
+import { AppProvider } from './context/AppContext';
 
 // This is the entry point of your application.
 // It renders the main App component into the 'root' div in your index.html

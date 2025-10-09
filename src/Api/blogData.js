@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // The base URL for all API requests to the backend server.
-const API_URL = '/api';
+const API_URL = 'http://localhost:8000/api';
 
 /**
  * Fetches all the necessary data for the homepage.

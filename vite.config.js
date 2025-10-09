@@ -4,8 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   // Add this line to fix the asset paths on Vercel
-  base: './', 
-
+//  base: './', 
   plugins: [
     tailwindcss(),
     react()

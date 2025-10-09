@@ -15,7 +15,7 @@ app.use(cors()); // Allows your React app (frontend) to make requests to this se
 app.use(express.json()); // Allows the server to understand JSON data sent from the frontend
 app.use('/public', express.static('public')); // Serves static files (like images) from the 'public' folder
 
-// 4. CREATE DATABASE CONNECTION POOL
+// 4. CREATE DATABASE CONNECTION POOL (WITH SSL ENABLED)
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -23,7 +23,9 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  // --- THIS IS THE FINAL FIX ---
+  ssl: { rejectUnauthorized: false } 
 });
 
 
@@ -134,29 +136,20 @@ app.get('/api/search/:searchTerm', async (req, res) => {
 });
 
 /**
- * --- THIS IS THE ENDPOINT THAT FIXES THE 404 ERROR ---
- * DOMAIN DETAILS
- * Fetches site-specific details (like title) based on the hostname.
- */
-// --- THIS IS THE NEW, MODIFIED CODE ---
-/**
  * DOMAIN DETAILS
  * Fetches site-specific details (like title) based on the hostname.
  */
 app.get('/api/domain-details/:hostname', async (req, res) => {
     try {
     
-      // to always look up this specific domain in the database.
       const forcedHostname = 'thatgirlmags.com'; 
       
       const [domainRows] = await pool.query("SELECT * FROM domains WHERE domain = ?", [forcedHostname]);
       
       if (domainRows.length === 0) {
-        // This error might now mean you don't have 'thatgirlmags.com' in your DB
         return res.status(404).json({ message: `Domain details not found for '${forcedHostname}'.` });
       }
       
-      // It will now return the row for 'thatgirlmags.com'
       res.json(domainRows[0]);
   
     } catch (error) {

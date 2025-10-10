@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // The base URL for all API requests to the backend server.
-const API_URL = 'https://jqrsmbk3-8000.inc1.devtunnels.ms/api';
+const API_URL =  'https://react.securebookingportal.com/api';
 
 /**
  * Fetches all the necessary data for the homepage.

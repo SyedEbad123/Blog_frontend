@@ -2,6 +2,7 @@
   "name": "my-new-blog",
   "private": true,
   "version": "0.0.0",
+  "homepage": "/blogtheme/",
   "type": "module",
   "scripts": {
     "dev": "vite",

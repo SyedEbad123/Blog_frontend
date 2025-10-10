@@ -1,4 +1,4 @@
-// server/server.js
+// server/server.js (OPTIMIZED & FINAL VERSION)
 
 // 1. IMPORT NECESSARY PACKAGES
 const express = require('express');
@@ -8,14 +8,14 @@ require('dotenv').config(); // Loads variables from your .env file
 
 // 2. INITIALIZE THE EXPRESS APP
 const app = express();
-const PORT = 8000; // The port your backend server will run on
+const PORT = 8000;
 
 // 3. SETUP MIDDLEWARE
-app.use(cors()); // Allows your React app (frontend) to make requests to this server
-app.use(express.json()); // Allows the server to understand JSON data sent from the frontend
-app.use('/public', express.static('public')); // Serves static files (like images) from the 'public' folder
+app.use(cors());
+app.use(express.json());
+app.use('/public', express.static('public'));
 
-// 4. CREATE DATABASE CONNECTION POOL (WITH SSL ENABLED)
+// 4. CREATE DATABASE CONNECTION POOL
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -23,24 +23,42 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0,
-  // --- THIS IS THE FINAL FIX ---
-  ssl: { rejectUnauthorized: false } 
+  queueLimit: 0
 });
 
 
 /**
- * HOMEPAGE DATA
- * Fetches all the different sets of posts needed to build the homepage.
+ * HOMEPAGE DATA (OPTIMIZED)
+ * Fetches all homepage data in parallel and selects only the necessary columns.
  */
 app.get('/api/homepage', async (req, res) => {
   try {
-    const [featuredPosts] = await pool.query("SELECT * FROM blog_posts ORDER BY sub_date DESC LIMIT 5");
-    const [secondaryPosts] = await pool.query("SELECT * FROM blog_posts ORDER BY sub_date DESC LIMIT 2 OFFSET 5");
-    const [latestNews] = await pool.query("SELECT * FROM blog_posts ORDER BY sub_date DESC LIMIT 10 OFFSET 7");
-    const [featuredHorizontalPost] = await pool.query("SELECT * FROM blog_posts WHERE f_status = 1 ORDER BY user_view DESC LIMIT 1");
-    const [horizontalCardData] = await pool.query("SELECT * FROM blog_posts ORDER BY sub_date DESC LIMIT 3 OFFSET 17");
-    const [allStories] = await pool.query("SELECT * FROM blog_posts ORDER BY sub_date DESC");
+    // This SQL statement joins blog_posts with the authors table to get the author name.
+    // It selects only the columns needed by the homepage components.
+    const sqlQuery = `
+      SELECT 
+        p.id, p.cat_id, p.title, p.short_des, p.blog_img_lg, p.sub_date, p.url_title,
+        a.name as author_name 
+      FROM blog_posts p
+      LEFT JOIN authors a ON p.auth_id = a.id
+    `;
+    
+    // PERFORMANCE: Run all database queries in parallel instead of one by one.
+    const [
+      [featuredPosts],
+      [secondaryPosts],
+      [latestNews],
+      [featuredHorizontalPost],
+      [horizontalCardData],
+      [allStories]
+    ] = await Promise.all([
+      pool.query(`${sqlQuery} ORDER BY p.sub_date DESC LIMIT 5`),
+      pool.query(`${sqlQuery} ORDER BY p.sub_date DESC LIMIT 2 OFFSET 5`),
+      pool.query(`${sqlQuery} ORDER BY p.sub_date DESC LIMIT 10 OFFSET 7`),
+      pool.query(`${sqlQuery} WHERE p.f_status = 1 ORDER BY p.user_view DESC LIMIT 1`),
+      pool.query(`${sqlQuery} ORDER BY p.sub_date DESC LIMIT 3 OFFSET 17`),
+      pool.query(`${sqlQuery} ORDER BY p.sub_date DESC`)
+    ]);
     
     res.json({ 
       featuredPosts, 
@@ -58,7 +76,6 @@ app.get('/api/homepage', async (req, res) => {
 
 /**
  * CATEGORY PAGE DATA
- * Fetches details for a specific category and all the posts within it.
  */
 app.get('/api/category/:categorySlug', async (req, res) => {
   try {
@@ -80,23 +97,34 @@ app.get('/api/category/:categorySlug', async (req, res) => {
 });
 
 /**
- * SINGLE POST PAGE DATA
- * Fetches a single post, its category details, and related posts.
+ * SINGLE POST PAGE DATA (OPTIMIZED)
+ * Fetches a single post, its category, and author details in one efficient query.
  */
 app.get('/api/post/:postSlug', async (req, res) => {
   try {
     const { postSlug } = req.params;
     
-    const [postRows] = await pool.query("SELECT * FROM blog_posts WHERE url_title = ?", [postSlug]);
+    // PERFORMANCE: Use LEFT JOINs to get all data in a single database call.
+    const [postRows] = await pool.query(
+      `SELECT p.*, a.name as author_name, a.author_bio, a.author_avatar, c.cat_display_title, c.cat_url_title 
+       FROM blog_posts p
+       LEFT JOIN authors a ON p.auth_id = a.id
+       LEFT JOIN domain_blog_categories c ON p.cat_id = c.id
+       WHERE p.url_title = ?`, 
+      [postSlug]
+    );
+      
     if (postRows.length === 0) {
       return res.status(404).json({ message: "Post not found" });
     }
     
     const post = postRows[0];
-    const [relatedPosts] = await pool.query("SELECT * FROM blog_posts WHERE cat_id = ? AND id != ? ORDER BY sub_date DESC LIMIT 3", [post.cat_id, post.id]);
-    const [categoryRows] = await pool.query("SELECT * FROM domain_blog_categories WHERE id = ?", [post.cat_id]);
+    const categoryInfo = { cat_display_title: post.cat_display_title, cat_url_title: post.cat_url_title };
+
+    // This query for related posts is still separate.
+    const [relatedPosts] = await pool.query("SELECT id, title, url_title, blog_img_sm, sub_date FROM blog_posts WHERE cat_id = ? AND id != ? ORDER BY sub_date DESC LIMIT 3", [post.cat_id, post.id]);
     
-    res.json({ post, relatedPosts, category: categoryRows[0] || null });
+    res.json({ post, relatedPosts, category: categoryInfo });
   } catch (error) {
     console.error("Failed to fetch post data:", error);
     res.status(500).json({ message: "Error fetching post data." });
@@ -104,8 +132,7 @@ app.get('/api/post/:postSlug', async (req, res) => {
 });
 
 /**
- * ALL CATEGORIES (for Header Navigation)
- * Fetches a simple list of categories filtered by a specific domain name.
+ * ALL CATEGORIES
  */
 app.get('/api/categories', async (req, res) => {
   try {
@@ -121,14 +148,15 @@ app.get('/api/categories', async (req, res) => {
 
 /**
  * SEARCH POSTS
- * Fetches posts from the database that match a search term in their title.
  */
 app.get('/api/search/:searchTerm', async (req, res) => {
   try {
     const { searchTerm } = req.params;
-    const searchQuery = `%${searchTerm.replace(/-/g, ' ')}%`;
+    const displayTerm = searchTerm.replace(/-/g, ' ');
+    const searchQuery = `%${displayTerm}%`;
+
     const [posts] = await pool.query("SELECT * FROM blog_posts WHERE title LIKE ?", [searchQuery]);
-    res.json({ posts, term: searchTerm.replace(/-/g, ' ') });
+    res.json({ posts, term: displayTerm });
   } catch (error) {
     console.error("Failed to fetch search results:", error);
     res.status(500).json({ message: "Error fetching search results." });
@@ -137,13 +165,10 @@ app.get('/api/search/:searchTerm', async (req, res) => {
 
 /**
  * DOMAIN DETAILS
- * Fetches site-specific details (like title) based on the hostname.
  */
 app.get('/api/domain-details/:hostname', async (req, res) => {
     try {
-    
       const forcedHostname = 'thatgirlmags.com'; 
-      
       const [domainRows] = await pool.query("SELECT * FROM domains WHERE domain = ?", [forcedHostname]);
       
       if (domainRows.length === 0) {

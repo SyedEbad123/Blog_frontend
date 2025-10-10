@@ -1,16 +1,8 @@
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  # This tells the server that the base URL for these rules is /blogtheme/
   RewriteBase /blogtheme/
-  
-  # This rule tells the server not to do anything for the index.html file itself
   RewriteRule ^index\.html$ - [L]
-  
-  # These two conditions say: if the requested URL is NOT a real file...
   RewriteCond %{REQUEST_FILENAME} !-f
-  # ...and it is NOT a real directory...
   RewriteCond %{REQUEST_FILENAME} !-d
-  
-  # ...then redirect the request to /blogtheme/index.html.
   RewriteRule . /blogtheme/index.html [L]
 </IfModule>
